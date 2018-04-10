@@ -1,6 +1,14 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <inttypes.h>
+#include <Wire.h>
+ 
+#include <lm75.h>
+ 
+TempI2C_LM75 termo = TempI2C_LM75(0x50,TempI2C_LM75::nine_bits);
+ 
+ 
 
 const char *ssid = "scoltock";
 const char *password = "nowireshere";
@@ -58,12 +66,23 @@ void handleNotFound() {
   digitalWrite ( led, 0 );
 }
 
+
+
+
+
 void setup ( void ) {
-  pinMode ( led, OUTPUT );
+
+ pinMode ( led, OUTPUT );
   digitalWrite ( led, 0 );
   Serial.begin ( 115200 );
   WiFi.begin ( ssid, password );
   Serial.println ( "" );
+  
+  for(int address = 0x48;address < 0x50; address++)
+    getTemp(address);
+return;
+  
+ 
 
   // Wait for connection
   while ( WiFi.status() != WL_CONNECTED ) {
@@ -76,6 +95,9 @@ void setup ( void ) {
   Serial.println ( ssid );
   Serial.print ( "IP address: " );
   Serial.println ( WiFi.localIP() );
+
+
+
 
   server.on ( "/", handleRoot );
   server.on ( "/test.svg", drawGraph );
@@ -108,3 +130,56 @@ void drawGraph() {
 
   server.send ( 200, "image/svg+xml", out);
 }
+
+void getTemp(int address) {
+    float real_value=0;
+  Wire.begin(D1, D2);
+
+const int LM75A_REG_ADDR_TEMP = 0;
+  // Go to temperature data register
+  Wire.beginTransmission(address);
+  Wire.write(LM75A_REG_ADDR_TEMP);
+  if(!Wire.endTransmission()) {
+     
+    uint16_t i2c_received = 0;
+  
+      // Get content
+    if (Wire.requestFrom(address, 2)) {
+      Wire.readBytes((uint8_t*)&i2c_received, 2);
+   
+
+  
+  // Modify the value (only 11 MSB are relevant if swapped)
+  int16_t refactored_value;
+  uint8_t* ptr = (uint8_t*)&refactored_value;
+
+  // Swap bytes
+  *ptr = *((uint8_t*)&i2c_received + 1);
+  *(ptr + 1) = *(uint8_t*)&i2c_received;
+
+  // Shift data (left-aligned)
+  refactored_value >>= 5;
+
+const int LM75A_BASE_ADDRESS = 0x48;
+
+const float LM75A_DEGREES_RESOLUTION = 0.125;
+
+
+  if (refactored_value & 0x0400) {
+    // When sign bit is set, set upper unused bits, then 2's complement
+    refactored_value |= 0xf800;
+    refactored_value = ~refactored_value + 1;
+    real_value = (float)refactored_value * (-1) * LM75A_DEGREES_RESOLUTION;
+  }
+  else {
+    real_value = (float)refactored_value *  LM75A_DEGREES_RESOLUTION;
+  }}}
+
+  Serial.print(address);
+  Serial.print(":");
+  Serial.print(real_value);
+  Serial.println("oC");
+    
+}
+
+
