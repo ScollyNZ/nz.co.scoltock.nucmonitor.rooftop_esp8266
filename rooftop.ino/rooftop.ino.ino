@@ -15,46 +15,55 @@ void setup ( void ) {
   pinMode ( led, OUTPUT );
   digitalWrite ( led, 0 );
   Serial.begin ( 115200 );
-  WiFi.begin ( ssid, password );
+ 
   Serial.println ( "" );
 
-  while ( WiFi.status() != WL_CONNECTED ) {
-    delay ( 500 );
-    Serial.print ( "." );
-    digitalWrite(led, !digitalRead (led));  //Flash LED while WiFi is not established
-  }
+  digitalWrite(led, 1); //leave LED on, now that WiFi is established
 
-  digitalWrite(led, 0); //Ensure LED is off, now that WiFi is established
-
-  printWiFiInfo();
 }
 
 void loop ( void ) {
   String postData="temp,hive=1 ambient=";
   float temp;
+  bool sendTemps = loopCount%(6*15) == 0;
+  bool sendTelemetry = loopCount%(6*60)==0;
   
-  for(int address = 0x48;address < 0x51; address++) {
-    temp=getTemp(address);
-    if (address>0x48) {
-      postData+=",";
-      postData+=address;
-      postData+="=";
-    }
+  digitalWrite(led, !digitalRead (led));
 
-    postData+=temp;
+  if (sendTemps || sendTelemetry)
+    connectWiFi();
+ 
+  if (sendTemps) {
+    for(int address = 0x48;address < 0x50; address++) {
+      temp=getTemp(address);
+      if (address>0x48) {
+        postData+=",";
+        postData+=address;
+        postData+="=";
+      }
+  
+      postData+=temp;
+    }
+  
+    insertData(postData);
   }
 
-  Serial.print(postData);
-
-  insertData(postData);
-
-  if (loopCount=4){
+  if (sendTelemetry){
     loopCount = 0;
     reportRSSI();
     reportBatteryLevel();
   }
 
-  delay(15*60*1000);
+  if (sendTemps || sendTelemetry)
+  {
+    disconnectWiFi();
+  }
+
+  delay(10*1000);
+  loopCount++;
+  Serial.print("-");
+  if (loopCount%6 == loopCount/6)
+    Serial.print(loopCount%6);
 }
 
 float getTemp(int address) {
@@ -95,14 +104,7 @@ float getTemp(int address) {
       }
     }
   }
-
-  Serial.print(address);
-  Serial.print(":");
-  Serial.print(real_value);
-  Serial.println("oC");
-
-  return real_value;
-    
+  return real_value; 
 }
 
 void reportRSSI()
@@ -123,12 +125,22 @@ void reportBatteryLevel()
 
 void insertData(String postData)
 {
+  Serial.print("Inserting '");
+  Serial.print(postData);
+  Serial.print("'");
   HTTPClient http;
   http.begin(influxURL);
   int httpCode = http.POST(postData);
   String payload = http.getString();
   http.end();
-  Serial.print(payload);
+  for(int i=0;i<5;i++){
+    digitalWrite(led,0);
+    delay(200);
+    digitalWrite(led,1);
+    delay(200);
+
+  }
+  Serial.println(" - Inserted");
 }
 
 void printWiFiInfo(){
@@ -137,5 +149,29 @@ void printWiFiInfo(){
   Serial.println ( ssid );
   Serial.print ( "IP address: " );
   Serial.println ( WiFi.localIP() );
+  Serial.print("Connected=");
+  Serial.println(WL_CONNECTED);
+  Serial.print("Disconnected=");
+  Serial.println(WL_DISCONNECTED);
 }
+
+void connectWiFi(){
+  WiFi.begin ( ssid, password );
+  while ( WiFi.status() != WL_CONNECTED ) {
+    delay ( 500 );
+    Serial.print ( "." );
+    digitalWrite(led, !digitalRead (led));  //Flash LED while WiFi is not established
+  }
+  printWiFiInfo();
+}
+
+void disconnectWiFi(){
+    Serial.print("Turning off WiFi");
+    WiFi.mode(WIFI_OFF);
+    Serial.print(" - off");
+    delay(500);
+    Serial.print(" - status=");
+    Serial.println(WiFi.status());
+}
+
 
