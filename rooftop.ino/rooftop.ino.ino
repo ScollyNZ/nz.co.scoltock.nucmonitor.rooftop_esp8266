@@ -11,6 +11,10 @@ const char *influxURL = "http://bees.scoltock.co.nz:8086/write?db=bees";
 int loopCount = 0;
 
 void setup ( void ) {
+  Serial.print("WiFi Status Connected=");
+  Serial.println(WL_CONNECTED);
+  Serial.print("WiFi Statis Disconnected=");
+  Serial.println(WL_DISCONNECTED);
 
   pinMode ( led, OUTPUT );
   digitalWrite ( led, 0 );
@@ -62,8 +66,12 @@ void loop ( void ) {
   delay(10*1000);
   loopCount++;
   Serial.print("-");
-  if (loopCount%6 == loopCount/6)
-    Serial.print(loopCount%6);
+  if (loopCount/6 == loopCount/6.0)
+    Serial.print(loopCount/6);
+  //Serial.println("");
+  //Serial.println(loopCount);
+  //Serial.println(loopCount%6);
+  //Serial.println(loopCount/6.0);
 }
 
 float getTemp(int address) {
@@ -149,10 +157,6 @@ void printWiFiInfo(){
   Serial.println ( ssid );
   Serial.print ( "IP address: " );
   Serial.println ( WiFi.localIP() );
-  Serial.print("Connected=");
-  Serial.println(WL_CONNECTED);
-  Serial.print("Disconnected=");
-  Serial.println(WL_DISCONNECTED);
 }
 
 void connectWiFi(){
